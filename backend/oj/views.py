@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db.models import QuerySet
+from rest_framework.authentication import BasicAuthentication
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -40,6 +41,8 @@ class ProblemDetailView(generics.RetrieveAPIView):
 
 
 class SubmissionListCreateView(generics.ListCreateAPIView):
+    authentication_classes = [BasicAuthentication]
+
     def get_serializer_class(self):
         if self.request.method == "POST":
             return SubmissionCreateSerializer
@@ -65,6 +68,7 @@ class SubmissionListCreateView(generics.ListCreateAPIView):
 
 
 class SubmissionDetailView(generics.RetrieveAPIView):
+    authentication_classes = [BasicAuthentication]
     serializer_class = SubmissionDetailSerializer
 
     def get_queryset(self) -> QuerySet[Submission]:

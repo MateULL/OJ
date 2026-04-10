@@ -76,10 +76,38 @@ class DockerRunner:
         input_in_container = "/testdata/" + input_path.replace("\\", "/").lstrip("/")
         inner_timeout_seconds = max(1, int(time_limit_ms / 1000) + 1)
         run_command = shlex.join(language.run_command)
+        command_with_timeout = f"timeout {inner_timeout_seconds}s {run_command} < {shlex.quote(input_in_container)}"
+        command_without_timeout = f"{run_command} < {shlex.quote(input_in_container)}"
         shell_command = (
             "cd /workspace && "
-            f"/usr/bin/time -f '\\n__OJ_TIME_SECONDS__=%e\\n__OJ_MEMORY_KB__=%M' "
-            f"timeout {inner_timeout_seconds}s {run_command} < {shlex.quote(input_in_container)}"
+            "if command -v timeout >/dev/null 2>&1; then "
+            f"RUNNER={shlex.quote(command_with_timeout)}; "
+            "else "
+            f"RUNNER={shlex.quote(command_without_timeout)}; "
+            "fi; "
+            "if [ -x /usr/bin/time ]; then "
+            "TIME_BIN=/usr/bin/time; "
+            "elif [ -x /bin/time ]; then "
+            "TIME_BIN=/bin/time; "
+            "else "
+            "TIME_BIN=; "
+            "fi; "
+            'if [ -n "$TIME_BIN" ] && "$TIME_BIN" -f "" true >/dev/null 2>/dev/null; then '
+            '"$TIME_BIN" -f \'\\n__OJ_TIME_SECONDS__=%e\\n__OJ_MEMORY_KB__=%M\' sh -lc "$RUNNER"; '
+            "else "
+            "START_NS=$(date +%s%N 2>/dev/null || echo 0); "
+            "case \"$START_NS\" in *[!0-9]*|\"\") START_NS=0 ;; esac; "
+            'sh -lc "$RUNNER"; '
+            "EXIT_CODE=$?; "
+            "END_NS=$(date +%s%N 2>/dev/null || echo 0); "
+            "case \"$END_NS\" in *[!0-9]*|\"\") END_NS=0 ;; esac; "
+            'if [ "$START_NS" -gt 0 ] && [ "$END_NS" -ge "$START_NS" ]; then '
+            "ELAPSED_NS=$((END_NS - START_NS)); "
+            "printf '\\n__OJ_TIME_SECONDS__=%s.%03d\\n' "
+            '"$((ELAPSED_NS / 1000000000))" "$(((ELAPSED_NS / 1000000) % 1000))" >&2; '
+            "fi; "
+            'exit "$EXIT_CODE"; '
+            "fi"
         )
         args = self._docker_args(
             image=language.image,

@@ -73,6 +73,8 @@ async function submitCode() {
     });
     ElMessage.success("Submission queued");
     startPolling(currentSubmission.value.id);
+  } catch {
+    ElMessage.error("Submit failed. Please check CSRF/session or backend logs.");
   } finally {
     submitting.value = false;
   }
@@ -81,9 +83,14 @@ async function submitCode() {
 function startPolling(submissionId: number) {
   stopPolling();
   pollTimer = window.setInterval(async () => {
-    currentSubmission.value = await fetchSubmission(submissionId);
-    if (currentSubmission.value.status === "FINISHED") {
+    try {
+      currentSubmission.value = await fetchSubmission(submissionId);
+      if (currentSubmission.value.status === "FINISHED") {
+        stopPolling();
+      }
+    } catch {
       stopPolling();
+      ElMessage.error("Failed to refresh judge status.");
     }
   }, 1500);
 }
