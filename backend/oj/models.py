@@ -1,7 +1,21 @@
+from pathlib import Path
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from judge.enums import JudgeMode, Language, SubmissionStatus, Verdict
+
+
+def sample_input_upload_to(instance: "ProblemSampleCase", filename: str) -> str:
+    ext = Path(filename).suffix.lower() or ".in"
+    return f"problem_samples/problem_{instance.problem_id or 'unsaved'}/{instance.sort_order}_input{ext}"
+
+
+def sample_output_upload_to(instance: "ProblemSampleCase", filename: str) -> str:
+    ext = Path(filename).suffix.lower() or ".out"
+    return f"problem_samples/problem_{instance.problem_id or 'unsaved'}/{instance.sort_order}_output{ext}"
 
 
 class Problem(models.Model):
@@ -50,6 +64,84 @@ class TestCase(models.Model):
 
     def __str__(self) -> str:
         return f"{self.problem_id}#{self.sort_order}"
+
+
+class ProblemSampleCase(models.Model):
+    problem = models.ForeignKey(
+        Problem,
+        related_name="sample_cases",
+        on_delete=models.CASCADE,
+    )
+    sort_order = models.PositiveIntegerField(default=1)
+    input_file = models.FileField(
+        upload_to=sample_input_upload_to,
+        validators=[FileExtensionValidator(allowed_extensions=["in"])],
+    )
+    output_file = models.FileField(
+        upload_to=sample_output_upload_to,
+        validators=[FileExtensionValidator(allowed_extensions=["out"])],
+    )
+    input_text = models.TextField(blank=True, editable=False)
+    output_text = models.TextField(blank=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["problem_id", "sort_order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["problem", "sort_order"],
+                name="uniq_problem_sample_case_order",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Sample {self.problem_id}#{self.sort_order}"
+
+    def clean(self) -> None:
+        super().clean()
+        errors = {}
+
+        if not self.input_file:
+            errors["input_file"] = "Please upload a .in sample input file."
+        elif Path(self.input_file.name).suffix.lower() != ".in":
+            errors["input_file"] = "Sample input file must use the .in extension."
+
+        if not self.output_file:
+            errors["output_file"] = "Please upload a .out sample output file."
+        elif Path(self.output_file.name).suffix.lower() != ".out":
+            errors["output_file"] = "Sample output file must use the .out extension."
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs) -> None:
+        self.full_clean()
+        self.input_text = self._read_file_text(self.input_file)
+        self.output_text = self._read_file_text(self.output_file)
+        super().save(*args, **kwargs)
+
+    def _read_file_text(self, field_file) -> str:
+        if not field_file:
+            return ""
+
+        should_close = False
+        file_obj = getattr(field_file, "file", None)
+        if file_obj is None or getattr(file_obj, "closed", False):
+            field_file.open("rb")
+            file_obj = field_file.file
+            should_close = True
+
+        try:
+            file_obj.seek(0)
+            content = file_obj.read()
+        finally:
+            file_obj.seek(0)
+            if should_close:
+                field_file.close()
+
+        if isinstance(content, str):
+            return content
+        return content.decode("utf-8", errors="replace")
 
 
 class Submission(models.Model):

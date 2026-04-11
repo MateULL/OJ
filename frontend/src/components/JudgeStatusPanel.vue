@@ -3,8 +3,9 @@
     <div class="panel-body">
       <div class="status-head">
         <div>
-          <div class="muted">Submission</div>
-          <strong>{{ submission ? `#${submission.id}` : "Not submitted" }}</strong>
+          <div class="muted">Judge Status</div>
+          <strong>{{ headline }}</strong>
+          <div v-if="submission" class="submission-id muted">Submission #{{ submission.id }}</div>
         </div>
         <VerdictTag :verdict="submission?.final_verdict ?? statusFallback" />
       </div>
@@ -16,6 +17,8 @@
         <strong>{{ submission.total_time_ms }} ms</strong>
         <span>Max memory</span>
         <strong>{{ submission.max_memory_kb }} KB</strong>
+        <span>Submitted</span>
+        <strong>{{ formatDate(submission.submitted_at) }}</strong>
       </div>
 
       <p v-else class="muted">Submit code to start judging.</p>
@@ -38,6 +41,23 @@ const statusFallback = computed(() => {
   }
   return props.submission.status === "FINISHED" ? "PENDING" : props.submission.status;
 });
+
+const headline = computed(() => {
+  if (!props.submission) {
+    return "Not submitted";
+  }
+  if (props.submission.status === "QUEUED") {
+    return "Queued for judging";
+  }
+  if (props.submission.status === "JUDGING") {
+    return "Running on judge";
+  }
+  return props.submission.final_verdict ? `Finished with ${props.submission.final_verdict}` : "Finished";
+});
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
+}
 </script>
 
 <style scoped>
@@ -51,6 +71,10 @@ const statusFallback = computed(() => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.submission-id {
+  margin-top: 4px;
 }
 
 .status-grid {

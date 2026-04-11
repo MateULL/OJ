@@ -1,3 +1,4 @@
+import { ensureCsrfCookie } from "./auth";
 import { http } from "./http";
 
 export type SubmissionStatus = "QUEUED" | "JUDGING" | "FINISHED";
@@ -50,6 +51,7 @@ export async function fetchSubmission(id: number): Promise<Submission> {
 }
 
 export async function createSubmission(payload: CreateSubmissionPayload): Promise<Submission> {
+  await ensureCsrfCookie();
   const response = await http.post<Submission>("/submissions/", payload);
   return response.data;
 }

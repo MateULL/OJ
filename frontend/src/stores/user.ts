@@ -1,11 +1,27 @@
 import { defineStore } from "pinia";
-import { http } from "../api/http";
+import {
+  fetchMe,
+  loginUser,
+  logoutUser,
+  registerUser,
+  type AuthPayload,
+  type MeResponse,
+  type RegisterPayload
+} from "../api/auth";
 
 interface UserState {
   id: number | null;
   username: string;
   isAuthenticated: boolean;
   isDemo: boolean;
+  loaded: boolean;
+}
+
+function applyUserPayload(state: UserState, payload: MeResponse) {
+  state.id = payload.id;
+  state.username = payload.username;
+  state.isAuthenticated = payload.is_authenticated;
+  state.isDemo = payload.is_demo;
 }
 
 export const useUserStore = defineStore("user", {
@@ -13,21 +29,46 @@ export const useUserStore = defineStore("user", {
     id: null,
     username: "",
     isAuthenticated: false,
-    isDemo: true
+    isDemo: false,
+    loaded: false
   }),
   actions: {
+    clear() {
+      this.id = null;
+      this.username = "";
+      this.isAuthenticated = false;
+      this.isDemo = false;
+    },
     async loadMe() {
-      const response = await http.get<{
-        id: number;
-        username: string;
-        is_authenticated: boolean;
-        is_demo: boolean;
-      }>("/users/me/");
-
-      this.id = response.data.id;
-      this.username = response.data.username;
-      this.isAuthenticated = response.data.is_authenticated;
-      this.isDemo = response.data.is_demo;
+      try {
+        const data = await fetchMe();
+        applyUserPayload(this, data);
+      } catch {
+        this.clear();
+      } finally {
+        this.loaded = true;
+      }
+    },
+    async ensureLoaded() {
+      if (this.loaded) {
+        return;
+      }
+      await this.loadMe();
+    },
+    async login(payload: AuthPayload) {
+      const data = await loginUser(payload);
+      applyUserPayload(this, data);
+      this.loaded = true;
+    },
+    async register(payload: RegisterPayload) {
+      const data = await registerUser(payload);
+      applyUserPayload(this, data);
+      this.loaded = true;
+    },
+    async logout() {
+      await logoutUser();
+      this.clear();
+      this.loaded = true;
     }
   }
 });

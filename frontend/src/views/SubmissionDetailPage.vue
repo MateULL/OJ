@@ -12,6 +12,8 @@
 
       <section class="panel">
         <div class="panel-body metrics">
+          <span>Final verdict</span>
+          <strong>{{ submission.final_verdict ?? "-" }}</strong>
           <span>Status</span>
           <strong>{{ submission.status }}</strong>
           <span>Total time</span>
@@ -20,6 +22,8 @@
           <strong>{{ submission.max_memory_kb }} KB</strong>
           <span>Submitted</span>
           <strong>{{ formatDate(submission.submitted_at) }}</strong>
+          <span>Judged</span>
+          <strong>{{ submission.judged_at ? formatDate(submission.judged_at) : "-" }}</strong>
         </div>
       </section>
 
@@ -42,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { ElMessage } from "element-plus";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { fetchSubmission, type Submission } from "../api/submissions";
@@ -72,7 +77,14 @@ async function loadSubmission() {
 function startPolling() {
   stopPolling();
   pollTimer = window.setInterval(async () => {
-    submission.value = await fetchSubmission(Number(route.params.id));
+    try {
+      submission.value = await fetchSubmission(Number(route.params.id));
+    } catch {
+      stopPolling();
+      ElMessage.error("Failed to refresh submission details.");
+      return;
+    }
+
     if (submission.value.status === "FINISHED") {
       stopPolling();
     }

@@ -18,6 +18,11 @@
 
     <section class="panel">
       <el-table v-loading="loading" :data="problems" empty-text="No problems yet">
+        <el-table-column label="" width="60" align="center">
+          <template #default="{ row }">
+            <span v-if="row.is_solved" class="solved-mark" aria-label="Solved" title="Solved">&#10003;</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="id" label="#" width="80" />
         <el-table-column prop="title" label="Title" min-width="240">
           <template #default="{ row }">
@@ -37,12 +42,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { fetchProblems, type Problem } from "../api/problems";
+import { useUserStore } from "../stores/user";
 
 const query = ref("");
 const loading = ref(false);
 const problems = ref<Problem[]>([]);
+const user = useUserStore();
 
 async function loadProblems() {
   loading.value = true;
@@ -54,6 +61,13 @@ async function loadProblems() {
 }
 
 onMounted(loadProblems);
+
+watch(
+  () => user.isAuthenticated,
+  () => {
+    void loadProblems();
+  }
+);
 </script>
 
 <style scoped>
@@ -64,5 +78,17 @@ onMounted(loadProblems);
 .problem-link {
   color: #0f766e;
   font-weight: 700;
+}
+
+.solved-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #15803d;
+  font-weight: 800;
+  background: #e8f7ec;
 }
 </style>

@@ -11,10 +11,15 @@
           <el-select v-model="language" class="language-select" aria-label="Language">
             <el-option label="C++17" value="cpp17" />
           </el-select>
-          <el-button type="primary" :loading="submitting" @click="submitCode">Submit</el-button>
+          <el-button type="primary" :loading="submitting" @click="handlePrimaryAction">
+            {{ user.isAuthenticated ? "Submit" : "Login to Submit" }}
+          </el-button>
         </div>
 
         <JudgeStatusPanel :submission="currentSubmission" />
+        <p v-if="!user.isAuthenticated" class="muted login-hint">
+          Sign in to submit code and track solved status for this problem.
+        </p>
         <MonacoCodeEditor v-model="sourceCode" language="cpp" height="520px" />
       </section>
     </div>
@@ -24,21 +29,16 @@
 
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { onBeforeUnmount, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { fetchProblem, type Problem } from "../api/problems";
 import { createSubmission, fetchSubmission, type Submission } from "../api/submissions";
 import JudgeStatusPanel from "../components/JudgeStatusPanel.vue";
 import ProblemStatement from "../components/ProblemStatement.vue";
 import MonacoCodeEditor from "../editor/MonacoCodeEditor.vue";
+import { useUserStore } from "../stores/user";
 
-const route = useRoute();
-const problem = ref<Problem | null>(null);
-const currentSubmission = ref<Submission | null>(null);
-const loading = ref(false);
-const submitting = ref(false);
-const language = ref("cpp17");
-const sourceCode = ref(`#include <bits/stdc++.h>
+const DEFAULT_SOURCE_CODE = `#include <bits/stdc++.h>
 using namespace std;
 
 int main() {
@@ -47,17 +47,54 @@ int main() {
   cout << a + b << '\\n';
   return 0;
 }
-`);
+`;
+
+const route = useRoute();
+const router = useRouter();
+const user = useUserStore();
+const problem = ref<Problem | null>(null);
+const currentSubmission = ref<Submission | null>(null);
+const loading = ref(false);
+const submitting = ref(false);
+const language = ref("cpp17");
+const sourceCode = ref(DEFAULT_SOURCE_CODE);
 
 let pollTimer: number | undefined;
+const problemId = computed(() => Number(route.params.id));
 
 async function loadProblem() {
   loading.value = true;
   try {
-    problem.value = await fetchProblem(Number(route.params.id));
+    problem.value = await fetchProblem(problemId.value);
   } finally {
     loading.value = false;
   }
+}
+
+function getDraftKey(problemValue: number, selectedLanguage: string) {
+  return `oj:draft:${problemValue}:${selectedLanguage}`;
+}
+
+function restoreDraft() {
+  if (typeof window === "undefined" || !Number.isFinite(problemId.value)) {
+    sourceCode.value = DEFAULT_SOURCE_CODE;
+    return;
+  }
+
+  const saved = window.localStorage.getItem(getDraftKey(problemId.value, language.value));
+  sourceCode.value = saved || DEFAULT_SOURCE_CODE;
+}
+
+async function handlePrimaryAction() {
+  if (!user.isAuthenticated) {
+    await router.push({
+      name: "login",
+      query: { redirect: route.fullPath }
+    });
+    return;
+  }
+
+  await submitCode();
 }
 
 async function submitCode() {
@@ -73,8 +110,14 @@ async function submitCode() {
     });
     ElMessage.success("Submission queued");
     startPolling(currentSubmission.value.id);
-  } catch {
-    ElMessage.error("Submit failed. Please check CSRF/session or backend logs.");
+  } catch (error: any) {
+    const detail = error?.response?.data?.detail;
+    if (detail === "Authentication credentials were not provided.") {
+      ElMessage.error("Please login before submitting.");
+      await router.push({ name: "login", query: { redirect: route.fullPath } });
+      return;
+    }
+    ElMessage.error(detail || "Submit failed. Please check CSRF/session or backend logs.");
   } finally {
     submitting.value = false;
   }
@@ -102,7 +145,28 @@ function stopPolling() {
   }
 }
 
-onMounted(loadProblem);
+watch(
+  problemId,
+  async () => {
+    stopPolling();
+    currentSubmission.value = null;
+    await loadProblem();
+    restoreDraft();
+  },
+  { immediate: true }
+);
+
+watch(language, () => {
+  restoreDraft();
+});
+
+watch(sourceCode, (value) => {
+  if (typeof window === "undefined" || !Number.isFinite(problemId.value)) {
+    return;
+  }
+  window.localStorage.setItem(getDraftKey(problemId.value, language.value), value);
+});
+
 onBeforeUnmount(stopPolling);
 </script>
 
@@ -131,6 +195,10 @@ onBeforeUnmount(stopPolling);
 
 .language-select {
   width: 160px;
+}
+
+.login-hint {
+  margin: 12px 0 0;
 }
 
 @media (max-width: 980px) {

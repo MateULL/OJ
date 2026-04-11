@@ -7,6 +7,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-oj-secret-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "DJANGO_FRONTEND_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -85,9 +93,13 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", BASE_DIR / "media")).resolve()
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [

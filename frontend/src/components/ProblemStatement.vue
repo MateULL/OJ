@@ -5,23 +5,24 @@
       <span>Time: {{ problem.time_limit_ms }} ms</span>
       <span>Memory: {{ problem.memory_limit_mb }} MB</span>
     </div>
-    <article class="description">{{ problem.description }}</article>
 
-    <div class="sample-grid">
-      <div>
-        <h2>Sample Input</h2>
-        <pre>{{ problem.sample_input || "No sample input." }}</pre>
-      </div>
-      <div>
-        <h2>Sample Output</h2>
-        <pre>{{ problem.sample_output || "No sample output." }}</pre>
-      </div>
-    </div>
+    <section class="statement-section">
+      <h2>Statement</h2>
+      <ProblemMarkdown :source="problem.description" />
+    </section>
+
+    <ProblemSampleList
+      :sample-cases="problem.sample_cases"
+      :legacy-input="problem.sample_input"
+      :legacy-output="problem.sample_output"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import type { Problem } from "../api/problems";
+import ProblemMarkdown from "./ProblemMarkdown.vue";
+import ProblemSampleList from "./ProblemSampleList.vue";
 
 defineProps<{
   problem: Problem;
@@ -43,18 +44,12 @@ defineProps<{
   color: #59636f;
 }
 
-.description {
-  margin-bottom: 24px;
-  white-space: pre-wrap;
+.statement-section {
+  margin-bottom: 8px;
 }
 
-.sample-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.sample-grid h2 {
-  margin: 0 0 8px;
-  font-size: 16px;
+.statement-section h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
 }
 </style>

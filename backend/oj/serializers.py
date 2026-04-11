@@ -1,12 +1,25 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model, password_validation
 from rest_framework import serializers
 
 from judge.enums import Language, SubmissionStatus
 
-from .models import Problem, Submission, SubmissionCaseResult
+from .models import Problem, ProblemSampleCase, Submission, SubmissionCaseResult
+
+
+class ProblemSampleCaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProblemSampleCase
+        fields = [
+            "id",
+            "sort_order",
+            "input_text",
+            "output_text",
+        ]
 
 
 class ProblemListSerializer(serializers.ModelSerializer):
+    is_solved = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = Problem
         fields = [
@@ -16,10 +29,13 @@ class ProblemListSerializer(serializers.ModelSerializer):
             "memory_limit_mb",
             "judge_mode",
             "is_public",
+            "is_solved",
         ]
 
 
 class ProblemDetailSerializer(serializers.ModelSerializer):
+    sample_cases = ProblemSampleCaseSerializer(many=True, read_only=True)
+
     class Meta:
         model = Problem
         fields = [
@@ -32,6 +48,7 @@ class ProblemDetailSerializer(serializers.ModelSerializer):
             "memory_limit_mb",
             "judge_mode",
             "is_public",
+            "sample_cases",
         ]
 
 
@@ -122,11 +139,51 @@ class SubmissionCreateSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
-            user_model = get_user_model()
-            user, _ = user_model.objects.get_or_create(username="demo")
+            raise serializers.ValidationError("Authentication is required.")
 
         return Submission.objects.create(
             user=user,
             status=SubmissionStatus.QUEUED.value,
             **validated_data,
         )
+
+
+class RegisterSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, trim_whitespace=False, style={"input_type": "password"})
+    confirm_password = serializers.CharField(write_only=True, trim_whitespace=False, style={"input_type": "password"})
+
+    def validate_username(self, value: str) -> str:
+        user_model = get_user_model()
+        if user_model.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+
+        user_model = get_user_model()
+        user = user_model(username=attrs["username"])
+        password_validation.validate_password(attrs["password"], user)
+        return attrs
+
+    def create(self, validated_data):
+        user_model = get_user_model()
+        return user_model.objects.create_user(
+            username=validated_data["username"],
+            password=validated_data["password"],
+        )
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, trim_whitespace=False, style={"input_type": "password"})
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = authenticate(request=request, username=attrs["username"], password=attrs["password"])
+        if user is None:
+            raise serializers.ValidationError({"non_field_errors": ["Invalid username or password."]})
+        attrs["user"] = user
+        return attrs

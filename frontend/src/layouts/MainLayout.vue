@@ -4,11 +4,14 @@
       <RouterLink class="brand" to="/problems">Minimal OJ</RouterLink>
       <nav class="nav-links">
         <RouterLink to="/problems">Problems</RouterLink>
-        <RouterLink to="/submissions">
+        <RouterLink v-if="user.isAuthenticated" to="/submissions">
           <span class="wide-label">Submissions</span>
           <span class="narrow-label">Subs</span>
         </RouterLink>
-        <RouterLink to="/me">Me</RouterLink>
+        <RouterLink v-if="user.isAuthenticated" to="/me">Me</RouterLink>
+        <RouterLink v-if="!user.isAuthenticated" to="/login">Login</RouterLink>
+        <RouterLink v-if="!user.isAuthenticated" to="/register">Register</RouterLink>
+        <button v-if="user.isAuthenticated" class="logout-button" type="button" @click="handleLogout">Logout</button>
       </nav>
     </el-header>
     <el-main class="app-main">
@@ -16,6 +19,25 @@
     </el-main>
   </el-container>
 </template>
+
+<script setup lang="ts">
+import { ElMessage } from "element-plus";
+import { useRouter } from "vue-router";
+import { useUserStore } from "../stores/user";
+
+const router = useRouter();
+const user = useUserStore();
+
+async function handleLogout() {
+  try {
+    await user.logout();
+    ElMessage.success("Logged out");
+    await router.push("/problems");
+  } catch {
+    ElMessage.error("Logout failed.");
+  }
+}
+</script>
 
 <style scoped>
 .app-shell {
@@ -39,18 +61,29 @@
 
 .nav-links {
   display: flex;
+  align-items: center;
   gap: 18px;
   color: #59636f;
   font-size: 14px;
 }
 
-.narrow-label {
-  display: none;
+.logout-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
+.logout-button:hover,
 .nav-links a.router-link-active {
   color: #0f766e;
   font-weight: 700;
+}
+
+.narrow-label {
+  display: none;
 }
 
 .app-main {
@@ -73,6 +106,7 @@
   }
 
   .nav-links {
+    flex-wrap: wrap;
     justify-content: flex-start;
     width: 100%;
     gap: 14px;
