@@ -13,13 +13,39 @@ import type { CheckinValue } from "../api/users";
 echarts.use([CalendarComponent, HeatmapChart, TooltipComponent, VisualMapComponent, CanvasRenderer]);
 
 const props = defineProps<{
-  month: string;
+  year: string | number;
   values: CheckinValue[];
 }>();
 
 const chartRef = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
 let resizeObserver: ResizeObserver | null = null;
+
+function buildPieces(maxCount: number) {
+  if (maxCount <= 1) {
+    return [
+      { value: 0, color: "#ebedf0" },
+      { min: 1, color: "#2ea043" }
+    ];
+  }
+
+  if (maxCount <= 3) {
+    return [
+      { value: 0, color: "#ebedf0" },
+      { value: 1, color: "#9be9a8" },
+      { value: 2, color: "#40c463" },
+      { min: 3, color: "#216e39" }
+    ];
+  }
+
+  return [
+    { value: 0, color: "#ebedf0" },
+    { value: 1, color: "#9be9a8" },
+    { min: 2, max: 3, color: "#40c463" },
+    { min: 4, max: 6, color: "#30a14e" },
+    { min: 7, color: "#216e39" }
+  ];
+}
 
 function renderChart() {
   if (!chartRef.value) {
@@ -35,41 +61,42 @@ function renderChart() {
     animation: false,
     tooltip: {
       trigger: "item",
-      formatter: (params: any) => {
-        const [date, count] = params.value as [string, number];
-        return `${date}<br/>AC: ${count}`;
+      formatter: (params: { value?: [string, number]; data?: { value: [string, number] } }) => {
+        const value = params.value ?? params.data?.value ?? ["", 0];
+        const [date, count] = value;
+        if (count > 0) {
+          return `${date}<br/>AC 次数：${count}`;
+        }
+        return `${date}<br/>当天暂无 AC`;
       }
     },
     visualMap: {
-      min: 0,
-      max: maxCount,
-      calculable: false,
-      orient: "horizontal",
-      left: "center",
-      bottom: 0,
-      inRange: {
-        color: ["#ecfdf3", "#86efac", "#22c55e", "#15803d"]
-      },
-      text: ["More", "Less"]
+      type: "piecewise",
+      show: false,
+      pieces: buildPieces(maxCount)
     },
     calendar: {
-      top: 24,
-      left: 20,
-      right: 20,
-      cellSize: ["auto", 18],
-      range: props.month,
+      top: 12,
+      left: 8,
+      right: 8,
+      cellSize: ["auto", 16],
+      range: `${props.year}`,
       itemStyle: {
         borderWidth: 1,
-        borderColor: "#d9dee7"
+        borderColor: "#ffffff",
+        color: "#ebedf0"
       },
       splitLine: {
         show: false
       },
       dayLabel: {
         firstDay: 1,
-        nameMap: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        margin: 10,
+        nameMap: ["", "Mon", "", "Wed", "", "Fri", ""],
+        color: "#64748b"
       },
       monthLabel: {
+        margin: 10,
         color: "#475569"
       },
       yearLabel: {
@@ -96,7 +123,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.month, props.values],
+  () => [props.year, props.values],
   () => renderChart(),
   { deep: true }
 );
@@ -111,6 +138,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .checkin-heatmap {
   width: 100%;
-  min-height: 260px;
+  min-height: 220px;
 }
 </style>

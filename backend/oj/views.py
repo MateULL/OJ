@@ -1,5 +1,6 @@
 import calendar
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from typing import List
 
 from django.contrib.auth import login, logout
 from django.db.models import BooleanField, Count, Exists, OuterRef, QuerySet, Value
@@ -26,6 +27,18 @@ from .serializers import (
 )
 
 
+def problem_queryset_for_request(request) -> QuerySet[Problem]:
+    queryset = Problem.objects.filter(is_public=True)
+    if request.user.is_authenticated:
+        accepted_submissions = Submission.objects.filter(
+            user=request.user,
+            problem_id=OuterRef("pk"),
+            final_verdict=Verdict.AC.value,
+        )
+        return queryset.annotate(is_solved=Exists(accepted_submissions))
+    return queryset.annotate(is_solved=Value(False, output_field=BooleanField()))
+
+
 @ensure_csrf_cookie
 def csrf_cookie_view(request):
     return JsonResponse({"detail": "CSRF cookie set."})
@@ -35,27 +48,19 @@ class ProblemListView(generics.ListAPIView):
     serializer_class = ProblemListSerializer
 
     def get_queryset(self) -> QuerySet[Problem]:
-        queryset = Problem.objects.filter(is_public=True)
+        queryset = problem_queryset_for_request(self.request)
         query = self.request.query_params.get("q", "").strip()
         if query:
             queryset = queryset.filter(title__icontains=query)
-
-        if self.request.user.is_authenticated:
-            accepted_submissions = Submission.objects.filter(
-                user=self.request.user,
-                problem_id=OuterRef("pk"),
-                final_verdict=Verdict.AC.value,
-            )
-            queryset = queryset.annotate(is_solved=Exists(accepted_submissions))
-        else:
-            queryset = queryset.annotate(is_solved=Value(False, output_field=BooleanField()))
 
         return queryset.order_by("id")
 
 
 class ProblemDetailView(generics.RetrieveAPIView):
     serializer_class = ProblemDetailSerializer
-    queryset = Problem.objects.filter(is_public=True).prefetch_related("sample_cases")
+
+    def get_queryset(self) -> QuerySet[Problem]:
+        return problem_queryset_for_request(self.request).prefetch_related("sample_cases")
 
 
 class RegisterView(APIView):
@@ -102,8 +107,7 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    authentication_classes = [SessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         logout(request)
@@ -150,7 +154,82 @@ class UserCheckinView(APIView):
     authentication_classes = [SessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
+    def _daily_counts(self, user):
+        tz = timezone.get_current_timezone()
+        daily_counts = (
+            Submission.objects.filter(user=user, final_verdict=Verdict.AC.value)
+            .annotate(activity_at=Coalesce("judged_at", "submitted_at"))
+            .annotate(day=TruncDate("activity_at", tzinfo=tz))
+            .values("day")
+            .annotate(count=Count("id"))
+            .order_by("day")
+        )
+        return list(daily_counts)
+
+    def _available_years(self, active_dates: List[date]) -> List[int]:
+        current_year = timezone.localdate().year
+        if not active_dates:
+            return [current_year]
+        first_year = active_dates[0].year
+        return list(range(first_year, current_year + 1))
+
+    def _max_streak_days(self, active_dates: List[date]) -> int:
+        if not active_dates:
+            return 0
+
+        streak = 1
+        best = 1
+        for index in range(1, len(active_dates)):
+            if active_dates[index] - active_dates[index - 1] == timedelta(days=1):
+                streak += 1
+            else:
+                streak = 1
+            best = max(best, streak)
+        return best
+
     def get(self, request):
+        daily_counts = self._daily_counts(request.user)
+        count_map = {row["day"].isoformat(): row["count"] for row in daily_counts if row["day"] is not None}
+        active_dates = [row["day"] for row in daily_counts if row["day"] is not None]
+        available_years = self._available_years(active_dates)
+
+        year_str = request.query_params.get("year")
+        if year_str:
+            try:
+                selected_year = int(year_str)
+                start_date = date(selected_year, 1, 1)
+                end_date = date(selected_year + 1, 1, 1)
+            except ValueError:
+                return Response({"detail": "year must use YYYY."}, status=status.HTTP_400_BAD_REQUEST)
+            current_date = start_date
+            values = []
+            year_active_days = 0
+            while current_date < end_date:
+                key = current_date.isoformat()
+                count = count_map.get(key, 0)
+                if count > 0:
+                    year_active_days += 1
+                values.append({"date": key, "count": count})
+                current_date += timedelta(days=1)
+
+            today = timezone.localdate()
+            last_30_days_start = today - timedelta(days=29)
+            last_30_days_active = sum(1 for active_date in active_dates if last_30_days_start <= active_date <= today)
+
+            return Response(
+                {
+                    "year": f"{selected_year}",
+                    "available_years": available_years,
+                    "values": values,
+                    "stats": {
+                        "total_active_days": len(active_dates),
+                        "year_active_days": year_active_days,
+                        "last_30_days_active_days": last_30_days_active,
+                        "max_streak_days": self._max_streak_days(active_dates),
+                    },
+                }
+            )
+
         month_str = request.query_params.get("month")
         if month_str:
             try:
@@ -161,23 +240,6 @@ class UserCheckinView(APIView):
             today = timezone.localdate()
             month_start = today.replace(day=1)
 
-        next_year = month_start.year + (1 if month_start.month == 12 else 0)
-        next_month = 1 if month_start.month == 12 else month_start.month + 1
-        month_end = datetime(next_year, next_month, 1).date()
-        tz = timezone.get_current_timezone()
-        range_start = timezone.make_aware(datetime(month_start.year, month_start.month, 1), tz)
-        range_end = timezone.make_aware(datetime(month_end.year, month_end.month, 1), tz)
-
-        daily_counts = (
-            Submission.objects.filter(user=request.user, final_verdict=Verdict.AC.value)
-            .annotate(activity_at=Coalesce("judged_at", "submitted_at"))
-            .filter(activity_at__gte=range_start, activity_at__lt=range_end)
-            .annotate(day=TruncDate("activity_at", tzinfo=tz))
-            .values("day")
-            .annotate(count=Count("id"))
-            .order_by("day")
-        )
-        count_map = {row["day"].isoformat(): row["count"] for row in daily_counts if row["day"] is not None}
         last_day = calendar.monthrange(month_start.year, month_start.month)[1]
         values = []
         active_days = 0

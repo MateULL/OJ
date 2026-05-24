@@ -9,8 +9,10 @@ export interface ProblemSampleCase {
 
 export interface Problem {
   id: number;
+  display_number?: number | null;
   title: string;
   description?: string;
+  difficulty?: string;
   sample_input?: string;
   sample_output?: string;
   time_limit_ms: number;

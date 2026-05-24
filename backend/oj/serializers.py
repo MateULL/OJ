@@ -24,7 +24,9 @@ class ProblemListSerializer(serializers.ModelSerializer):
         model = Problem
         fields = [
             "id",
+            "display_number",
             "title",
+            "difficulty",
             "time_limit_ms",
             "memory_limit_mb",
             "judge_mode",
@@ -35,19 +37,23 @@ class ProblemListSerializer(serializers.ModelSerializer):
 
 class ProblemDetailSerializer(serializers.ModelSerializer):
     sample_cases = ProblemSampleCaseSerializer(many=True, read_only=True)
+    is_solved = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Problem
         fields = [
             "id",
+            "display_number",
             "title",
             "description",
+            "difficulty",
             "sample_input",
             "sample_output",
             "time_limit_ms",
             "memory_limit_mb",
             "judge_mode",
             "is_public",
+            "is_solved",
             "sample_cases",
         ]
 
@@ -127,12 +133,12 @@ class SubmissionCreateSerializer(serializers.ModelSerializer):
 
     def validate_language(self, value: str) -> str:
         if value != Language.CPP17.value:
-            raise serializers.ValidationError("第一阶段仅支持 cpp17。")
+            raise serializers.ValidationError("Stage 1 currently supports only cpp17.")
         return value
 
     def validate_problem(self, value: Problem) -> Problem:
         if not value.is_public:
-            raise serializers.ValidationError("题目不可提交。")
+            raise serializers.ValidationError("This problem is not open for submissions.")
         return value
 
     def create(self, validated_data):

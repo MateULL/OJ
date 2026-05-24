@@ -29,7 +29,7 @@ pip install -r requirements.txt
 
 $env:MYSQL_DATABASE="oj"
 $env:MYSQL_USER="root"
-$env:MYSQL_PASSWORD="your-password"
+$env:MYSQL_PASSWORD="304349582"
 $env:MYSQL_HOST="127.0.0.1"
 $env:MYSQL_PORT="3306"
 python manage.py migrate

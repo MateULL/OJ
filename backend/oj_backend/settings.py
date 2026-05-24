@@ -15,6 +15,13 @@ FRONTEND_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+CPOLAR_ORIGIN_REGEXES = [
+    r"^https?://([a-z0-9-]+\.)*cpolar\.top$",
+]
+CSRF_TUNNEL_ORIGINS = [
+    "http://*.cpolar.top",
+    "https://*.cpolar.top",
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -97,9 +104,10 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", BASE_DIR / "media")).resolve()
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOWED_ORIGINS = [origin for origin in FRONTEND_ORIGINS if "*" not in origin]
+CORS_ALLOWED_ORIGIN_REGEXES = CPOLAR_ORIGIN_REGEXES
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
+CSRF_TRUSTED_ORIGINS = [*FRONTEND_ORIGINS, *CSRF_TUNNEL_ORIGINS]
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [

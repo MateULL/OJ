@@ -12,10 +12,12 @@ const props = withDefaults(
     modelValue: string;
     language?: string;
     height?: string;
+    theme?: string;
   }>(),
   {
     language: "cpp",
-    height: "520px"
+    height: "520px",
+    theme: "vs"
   }
 );
 
@@ -63,7 +65,9 @@ onMounted(() => {
     tabSize: 2,
     scrollBeyondLastLine: false,
     fixedOverflowWidgets: true,
-    theme: "vs"
+    renderLineHighlight: "gutter",
+    padding: { top: 16, bottom: 16 },
+    theme: props.theme
   });
 
   editor.onDidChangeModelContent(() => {
@@ -95,6 +99,15 @@ watch(
   }
 );
 
+watch(
+  () => props.theme,
+  (theme) => {
+    if (theme) {
+      monaco.editor.setTheme(theme);
+    }
+  }
+);
+
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   window.removeEventListener("blur", blurEditorIfActive);
@@ -108,8 +121,10 @@ onBeforeUnmount(() => {
   width: 100%;
   height: v-bind(height);
   min-height: 360px;
-  border: 1px solid #d9dee7;
+  border: 1px solid var(--oj-border);
   border-radius: 8px;
   overflow: hidden;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 </style>

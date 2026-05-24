@@ -1,19 +1,24 @@
 <template>
   <el-container class="app-shell">
     <el-header class="app-header">
-      <RouterLink class="brand" to="/problems">Minimal OJ</RouterLink>
-      <nav class="nav-links">
-        <RouterLink to="/problems">Problems</RouterLink>
-        <RouterLink v-if="user.isAuthenticated" to="/submissions">
-          <span class="wide-label">Submissions</span>
-          <span class="narrow-label">Subs</span>
-        </RouterLink>
-        <RouterLink v-if="user.isAuthenticated" to="/me">Me</RouterLink>
-        <RouterLink v-if="!user.isAuthenticated" to="/login">Login</RouterLink>
-        <RouterLink v-if="!user.isAuthenticated" to="/register">Register</RouterLink>
-        <button v-if="user.isAuthenticated" class="logout-button" type="button" @click="handleLogout">Logout</button>
-      </nav>
+      <div class="app-header__inner">
+        <RouterLink class="brand" to="/problems">OJ 判题系统</RouterLink>
+
+        <nav class="nav-links" aria-label="主导航">
+          <RouterLink to="/problems">题库</RouterLink>
+          <RouterLink v-if="user.isAuthenticated" to="/submissions">提交记录</RouterLink>
+          <RouterLink v-if="user.isAuthenticated" to="/me">个人中心</RouterLink>
+          <RouterLink v-if="!user.isAuthenticated" to="/login">登录</RouterLink>
+          <RouterLink v-if="!user.isAuthenticated" to="/register">注册</RouterLink>
+        </nav>
+
+        <div class="header-actions">
+          <span v-if="user.isAuthenticated" class="user-chip">{{ user.username }}</span>
+          <button v-if="user.isAuthenticated" class="logout-button" type="button" @click="handleLogout">退出</button>
+        </div>
+      </div>
     </el-header>
+
     <el-main class="app-main">
       <RouterView />
     </el-main>
@@ -31,10 +36,10 @@ const user = useUserStore();
 async function handleLogout() {
   try {
     await user.logout();
-    ElMessage.success("Logged out");
+    ElMessage.success("已退出登录");
     await router.push("/problems");
   } catch {
-    ElMessage.error("Logout failed.");
+    ElMessage.error("退出失败，请稍后重试。");
   }
 }
 </script>
@@ -45,80 +50,114 @@ async function handleLogout() {
 }
 
 .app-header {
+  padding: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--oj-nav);
+}
+
+.app-header__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 58px;
-  border-bottom: 1px solid #d9dee7;
-  background: #ffffff;
+  gap: 16px;
+  width: min(1180px, calc(100% - 32px));
+  min-height: 64px;
+  margin: 0 auto;
 }
 
 .brand {
-  font-size: 18px;
+  color: #f8fafc;
+  font-size: 20px;
   font-weight: 700;
-  color: #0f766e;
+  white-space: nowrap;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 18px;
-  color: #59636f;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-links a,
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: #d1d5db;
   font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.nav-links a:hover,
+.logout-button:hover {
+  background: var(--oj-nav-hover);
+  color: #ffffff;
+}
+
+.nav-links a.router-link-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .logout-button {
-  padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
-  font: inherit;
   cursor: pointer;
-}
-
-.logout-button:hover,
-.nav-links a.router-link-active {
-  color: #0f766e;
-  font-weight: 700;
-}
-
-.narrow-label {
-  display: none;
 }
 
 .app-main {
   padding: 0;
+  background: var(--oj-bg);
 }
 
-@media (max-width: 520px) {
-  .app-header {
-    align-items: flex-start;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    height: auto;
-    min-height: 76px;
-    padding: 10px 12px;
+@media (max-width: 760px) {
+  .app-header__inner {
+    flex-wrap: wrap;
+    width: min(100% - 20px, 1180px);
+    padding: 12px 0;
   }
 
   .brand {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .nav-links {
-    flex-wrap: wrap;
+    order: 3;
     justify-content: flex-start;
     width: 100%;
-    gap: 14px;
-    font-size: 12px;
+    flex-wrap: wrap;
   }
 
-  .wide-label {
-    display: none;
-  }
-
-  .narrow-label {
-    display: inline;
+  .header-actions {
+    margin-left: auto;
   }
 }
 </style>

@@ -125,15 +125,18 @@ class ProblemSampleCaseInline(admin.StackedInline):
 @admin.register(Problem)
 class ProblemAdmin(admin.ModelAdmin):
     form = ProblemAdminForm
-    list_display = ("id", "title", "time_limit_ms", "memory_limit_mb", "is_public")
+    list_display = ("id", "display_number", "title", "difficulty", "time_limit_ms", "memory_limit_mb", "is_public")
     search_fields = ("title",)
     inlines = [ProblemSampleCaseInline, TestCaseInline]
+    readonly_fields = ("display_number",)
     fieldsets = (
         (
             None,
             {
                 "fields": (
+                    "display_number",
                     "title",
+                    "difficulty",
                     "description",
                     "time_limit_ms",
                     "memory_limit_mb",
