@@ -67,6 +67,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "oj_backend.wsgi.application"
 
+# 本地演示可用 OJ_USE_SQLITE=1 切到 SQLite；默认使用 MySQL，密码从环境变量读取。
 if os.getenv("OJ_USE_SQLITE", "0") == "1":
     DATABASES = {
         "default": {

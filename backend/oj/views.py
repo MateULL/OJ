@@ -28,6 +28,7 @@ from .serializers import (
 
 
 def problem_queryset_for_request(request) -> QuerySet[Problem]:
+    # 前端只展示公开题；登录用户会额外标注 is_solved，题库页可显示已通过状态。
     queryset = Problem.objects.filter(is_public=True)
     if request.user.is_authenticated:
         accepted_submissions = Submission.objects.filter(
@@ -124,6 +125,7 @@ class SubmissionListCreateView(generics.ListCreateAPIView):
         return SubmissionListSerializer
 
     def get_queryset(self) -> QuerySet[Submission]:
+        # 普通用户只能查看自己的提交记录，避免从接口读到其他人的代码。
         queryset = Submission.objects.select_related("problem", "user").filter(user=self.request.user)
 
         problem_id = self.request.query_params.get("problem")
@@ -155,6 +157,7 @@ class UserCheckinView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def _daily_counts(self, user):
+        # 只统计 AC 提交，并按本地日期分组；优先使用 judged_at，兼容旧数据时再回退到 submitted_at。
         tz = timezone.get_current_timezone()
         daily_counts = (
             Submission.objects.filter(user=user, final_verdict=Verdict.AC.value)
@@ -174,6 +177,7 @@ class UserCheckinView(APIView):
         return list(range(first_year, current_year + 1))
 
     def _max_streak_days(self, active_dates: List[date]) -> int:
+        # active_dates 已经按日期升序排列，这里线性扫描即可得到最长连续打卡天数。
         if not active_dates:
             return 0
 
@@ -195,6 +199,7 @@ class UserCheckinView(APIView):
 
         year_str = request.query_params.get("year")
         if year_str:
+            # 年视图返回全年每天的数据，供前端热力图直接渲染。
             try:
                 selected_year = int(year_str)
                 start_date = date(selected_year, 1, 1)

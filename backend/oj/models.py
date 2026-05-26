@@ -21,6 +21,7 @@ def sample_output_upload_to(instance: "ProblemSampleCase", filename: str) -> str
 
 
 def _delete_storage_file(field_file) -> None:
+    # 删除上传样例文件时只操作存储层，不影响数据库记录的删除流程。
     name = getattr(field_file, "name", "")
     if not name:
         return
@@ -34,6 +35,7 @@ def _delete_testcase_file(relative_path: str) -> None:
     if not relative_path:
         return
 
+    # 测试点文件必须位于 TESTCASE_ROOT 下，避免误删项目目录外的文件。
     testcase_root = Path(settings.TESTCASE_ROOT).resolve()
     target = (testcase_root / relative_path).resolve()
     if target != testcase_root and testcase_root not in target.parents:
@@ -58,6 +60,7 @@ class Problem(models.Model):
         HARD = "hard", "Hard"
 
     title = models.CharField(max_length=200)
+    # display_number 是前端展示的题号，和数据库主键分开，隐藏题或测试题不会让题号断档。
     display_number = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -101,6 +104,7 @@ class Problem(models.Model):
 
         super().save(*args, **kwargs)
 
+        # 题目新增、删除、隐藏或公开后，公开题号需要重新排成连续序号。
         needs_sync = False
         if self.is_public and self.display_number is None:
             needs_sync = True
@@ -115,6 +119,7 @@ class Problem(models.Model):
 
 
 def sync_public_problem_display_numbers(using: str = "default") -> None:
+    # 只根据公开题重建可见题号，保证题库页显示为 1、2、3... 的连续序号。
     public_problems = list(Problem.objects.using(using).filter(is_public=True).order_by("id"))
     updated = []
     for index, problem in enumerate(public_problems, start=1):
@@ -159,6 +164,7 @@ class TestCase(models.Model):
         super().save(*args, **kwargs)
 
         if old_input_path and old_input_path != self.input_path:
+            # 管理后台替换测试点文件后，及时清理旧文件，避免残留数据越积越多。
             _delete_testcase_file(old_input_path)
         if old_output_path and old_output_path != self.output_path:
             _delete_testcase_file(old_output_path)
@@ -225,6 +231,7 @@ class ProblemSampleCase(models.Model):
                 old_output_name = previous["output_file"] or ""
 
         self.full_clean()
+        # 上传的样例文件保留在磁盘；同时把文本提取到数据库，前端展示时无需再读文件。
         self.input_text = self._read_file_text(self.input_file)
         self.output_text = self._read_file_text(self.output_file)
         super().save(*args, **kwargs)

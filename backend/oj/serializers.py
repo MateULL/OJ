@@ -99,6 +99,7 @@ class SubmissionListSerializer(serializers.ModelSerializer):
 class SubmissionDetailSerializer(serializers.ModelSerializer):
     problem_title = serializers.CharField(source="problem.title", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
+    # 详情页需要直接展示每个测试点结果，所以这里用方法字段统一排序后返回。
     case_results = serializers.SerializerMethodField()
 
     class Meta:
@@ -147,6 +148,7 @@ class SubmissionCreateSerializer(serializers.ModelSerializer):
         if user is None or not user.is_authenticated:
             raise serializers.ValidationError("Authentication is required.")
 
+        # 新提交只入队，不在请求线程里判题，避免页面等待编译和运行。
         return Submission.objects.create(
             user=user,
             status=SubmissionStatus.QUEUED.value,

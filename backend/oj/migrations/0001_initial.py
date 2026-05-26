@@ -1,4 +1,4 @@
-# Generated for the first-stage OJ schema.
+# 第一阶段 OJ 业务表的初始迁移。
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion

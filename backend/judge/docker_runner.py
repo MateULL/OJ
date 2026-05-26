@@ -16,12 +16,13 @@ MEMORY_PATTERN = re.compile(r"__OJ_MEMORY_KB__=(\d+)")
 
 
 class DockerRunner:
-    """Thin Docker wrapper. Database state is intentionally handled elsewhere."""
+    """只负责 Docker 编译和运行；数据库状态交给 JudgeCore/Worker 处理。"""
 
     def __init__(self, output_limit_bytes: int = None) -> None:
         self.output_limit_bytes = output_limit_bytes or settings.JUDGE_OUTPUT_LIMIT_BYTES
 
     def compile(self, language: LanguageConfig, workdir: Path) -> CompileResult:
+        # 编译也放在 Docker 内执行，Web 进程不会直接在宿主机运行用户代码。
         command = "cd /workspace && " + shlex.join(language.compile_command)
         args = self._docker_args(
             image=language.image,
@@ -73,6 +74,7 @@ class DockerRunner:
         time_limit_ms: int,
         memory_limit_mb: int,
     ) -> DockerRunResult:
+        # 测试点输入只读挂载到 /testdata，每次运行都使用禁网的新容器。
         input_in_container = "/testdata/" + input_path.replace("\\", "/").lstrip("/")
         inner_timeout_seconds = max(1, int(time_limit_ms / 1000) + 1)
         run_command = shlex.join(language.run_command)
@@ -80,6 +82,7 @@ class DockerRunner:
         command_without_timeout = f"{run_command} < {shlex.quote(input_in_container)}"
         shell_command = (
             "cd /workspace && "
+            # 优先使用 GNU timeout/time；容器内没有这些工具时再用时间戳兜底计时。
             "if command -v timeout >/dev/null 2>&1; then "
             f"RUNNER={shlex.quote(command_with_timeout)}; "
             "else "
@@ -172,6 +175,7 @@ class DockerRunner:
         extra_mounts: Sequence[Tuple[Path, str, str]],
         command: str,
     ) -> List[str]:
+        # 这里的 Docker 参数组成基础沙箱：禁网、限制内存和进程数、挂载独立工作目录。
         args = [
             "docker",
             "run",
@@ -193,6 +197,7 @@ class DockerRunner:
         return args
 
     def _parse_time_and_memory(self, stderr: str, fallback_runtime_ms: int) -> Tuple[int, int, str]:
+        # 从 /usr/bin/time 的标记行里提取耗时和内存；解析不到时使用外部计时兜底。
         time_match = TIME_PATTERN.search(stderr)
         memory_match = MEMORY_PATTERN.search(stderr)
 
@@ -209,6 +214,7 @@ class DockerRunner:
         return runtime_ms, memory_kb, clean_stderr
 
     def _truncate_stdout(self, stdout: str) -> Tuple[str, bool]:
+        # 输出过大时截断保存，避免异常程序占满数据库或内存。
         encoded = stdout.encode("utf-8", errors="replace")
         if len(encoded) <= self.output_limit_bytes:
             return stdout, False

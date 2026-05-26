@@ -22,15 +22,18 @@ class JudgeCore:
         self.work_root = Path(settings.JUDGE_WORK_ROOT).resolve()
 
     def judge_submission(self, submission_id: int) -> Submission:
+        # 一次提交的完整判题流程：取提交数据 -> 编译 -> 跑每个测试点 -> 汇总最终结果。
         submission = Submission.objects.select_related("problem", "user").get(pk=submission_id)
         language = get_language_config(submission.language)
         test_cases = list(submission.problem.test_cases.order_by("sort_order", "id"))
 
+        # 没有测试点时无法判断答案正确性，按系统错误结束，方便管理员排查题目配置。
         if not test_cases:
             return self._finish_submission(submission, Verdict.SE.value, "No test cases configured.")
 
         workdir = self._prepare_workdir(submission.id)
         source_path = workdir / language.source_filename
+        # 用户源码只写入本次提交的临时目录，后续编译和运行都在这个目录内完成。
         source_path.write_text(submission.source_code, encoding="utf-8")
 
         SubmissionCaseResult.objects.filter(submission=submission).delete()
@@ -43,6 +46,7 @@ class JudgeCore:
 
         case_results: List[CaseJudgeResult] = []
         for test_case in test_cases:
+            # 每个测试点独立运行，避免前一个测试点的进程或文件影响后一个测试点。
             case_result = self._judge_case(submission, test_case, language, workdir)
             case_results.append(case_result)
             SubmissionCaseResult.objects.update_or_create(
@@ -104,6 +108,7 @@ class JudgeCore:
         time_limit_ms: int,
         memory_limit_mb: int,
     ) -> str:
+        # 判题结果按传统 OJ 优先级判断：系统错误 -> 超时 -> 超内存 -> 输出过多 -> 运行错误 -> AC/WA。
         if run_result.system_error:
             return Verdict.SE.value
         if run_result.timed_out or run_result.runtime_ms > time_limit_ms:
@@ -134,6 +139,7 @@ class JudgeCore:
         return f"Process exited with code {run_result.exit_code}."
 
     def _aggregate_verdict(self, results: Iterable[CaseJudgeResult]) -> str:
+        # 按测试点顺序返回第一个非 AC 结果；全部通过才算整题 AC。
         seen_any = False
         for result in results:
             seen_any = True
@@ -161,6 +167,7 @@ class JudgeCore:
         return submission
 
     def _prepare_workdir(self, submission_id: int) -> Path:
+        # 每次提交在宿主机上使用独立工作目录，便于清理并避免不同提交相互覆盖。
         self.work_root.mkdir(parents=True, exist_ok=True)
         workdir = (self.work_root / f"submission_{submission_id}").resolve()
         if self.work_root not in workdir.parents:
@@ -171,6 +178,7 @@ class JudgeCore:
         return workdir
 
     def _safe_testcase_path(self, relative_path: str) -> Path:
+        # 测试点路径必须留在 TESTCASE_ROOT 内，防止通过 ../ 访问到目录外文件。
         target = (self.testcase_root / relative_path).resolve()
         if target != self.testcase_root and self.testcase_root not in target.parents:
             raise ValueError(f"Testcase path escapes TESTCASE_ROOT: {relative_path}")
@@ -180,6 +188,7 @@ class JudgeCore:
 
 
 def judge_submission(submission_id: int) -> Submission:
+    # 行锁用于防止多个 worker 同时抢到同一条提交记录。
     with transaction.atomic():
         submission = Submission.objects.select_for_update().get(pk=submission_id)
         if submission.status != SubmissionStatus.JUDGING.value:

@@ -144,6 +144,7 @@ const layoutStyle = computed(() => {
     return undefined;
   }
 
+  // 桌面端使用可拖拽的左右两栏布局，左侧题面、右侧代码区。
   const leftWidth = Math.round(layoutWidth.value * clampSplitRatio(splitRatio.value, layoutWidth.value));
   return {
     gridTemplateColumns: `${leftWidth}px ${RESIZER_WIDTH}px minmax(${MIN_WORKSPACE_WIDTH}px, 1fr)`
@@ -174,6 +175,7 @@ function clampSplitRatio(nextRatio: number, totalWidth = layoutWidth.value) {
     return DEFAULT_SPLIT_RATIO;
   }
 
+  // 限制分割比例，避免用户拖动后题面或编辑器区域被压得过窄。
   const minRatio = MIN_STATEMENT_WIDTH / totalWidth;
   const maxRatio = (totalWidth - MIN_WORKSPACE_WIDTH - RESIZER_WIDTH) / totalWidth;
 
@@ -233,6 +235,7 @@ function startResize(event: PointerEvent) {
   isResizing.value = true;
   document.body.classList.add("is-resizing-problem-layout");
 
+  // 拖拽时只更新布局比例；Monaco 编辑器自身会在组件内监听尺寸变化并重排。
   const onPointerMove = (moveEvent: PointerEvent) => {
     const nextLeft = moveEvent.clientX - rect.left;
     splitRatio.value = clampSplitRatio(nextLeft / totalWidth, totalWidth);
@@ -274,6 +277,7 @@ async function loadProblem() {
 }
 
 function getDraftKey(problemValue: number, selectedLanguage: string) {
+  // 草稿按“题目 + 语言”区分，切换题目时不会覆盖其他题的代码。
   return `oj:draft:${problemValue}:${selectedLanguage}`;
 }
 
@@ -310,6 +314,7 @@ async function submitCode() {
   }
   submitting.value = true;
   try {
+    // 前端只创建提交记录；真正的编译运行由后端 worker 异步完成。
     currentSubmission.value = await createSubmission({
       problem: problem.value.id,
       language: language.value,
@@ -332,6 +337,7 @@ async function submitCode() {
 
 function startPolling(submissionId: number) {
   stopPolling();
+  // 轮询当前提交状态，worker 判完后状态会变为 FINISHED。
   pollTimer = window.setInterval(async () => {
     try {
       currentSubmission.value = await fetchSubmission(submissionId);

@@ -1,14 +1,13 @@
--- MySQL schema for the OJ business tables.
--- Generated from the current Django models and migrations in backend/oj/migrations/.
--- Source of truth remains Django migrations; this file is a convenience DDL export.
+-- OJ 业务表的 MySQL 建表脚本。
+-- 根据当前 Django models 和 migrations 导出，实际结构以 Django migrations 为准。
+-- 这个文件主要用于查看或手动初始化业务表。
 --
--- Important:
--- 1. This file covers the `oj` app business tables only.
--- 2. Django built-in tables such as `auth_user`, `django_admin_log`,
---    `django_content_type`, `django_migrations`, and `django_session`
---    are not included here.
--- 3. Create those built-in tables with `python manage.py migrate`,
---    or make sure they already exist before applying the foreign keys below.
+-- 注意：
+-- 1. 这里只包含 `oj` app 的业务表。
+-- 2. `auth_user`、`django_admin_log`、`django_content_type`、
+--    `django_migrations`、`django_session` 等 Django 内置表不在这里。
+-- 3. 这些内置表请通过 `python manage.py migrate` 创建，
+--    或在执行下面的外键语句前确认它们已经存在。
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;

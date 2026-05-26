@@ -22,6 +22,7 @@ let chart: echarts.ECharts | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
 function buildPieces(maxCount: number) {
+  // 使用固定的绿色档位，AC 次数较少时热力图也能看出深浅差异。
   if (maxCount <= 1) {
     return [
       { value: 0, color: "#ebedf0" },
@@ -76,6 +77,7 @@ function renderChart() {
       pieces: buildPieces(maxCount)
     },
     calendar: {
+      // 使用 ECharts 日历坐标系实现类似贡献图的布局，不额外引入新图表库。
       top: 12,
       left: 8,
       right: 8,

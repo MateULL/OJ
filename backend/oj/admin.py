@@ -24,6 +24,7 @@ class ProblemAdminForm(forms.ModelForm):
 
 
 class TestCaseInlineForm(forms.ModelForm):
+    # 管理后台上传测试点文件，保存时会写入 TESTCASE_ROOT，并把相对路径存入数据库。
     input_upload = forms.FileField(
         required=False,
         validators=[FileExtensionValidator(allowed_extensions=["in"])],
@@ -50,6 +51,7 @@ class TestCaseInlineForm(forms.ModelForm):
         input_upload = cleaned_data.get("input_upload")
         output_upload = cleaned_data.get("output_upload")
         if self.instance.pk:
+            # 编辑已有测试点时允许不重新上传；但数据库里必须已有对应路径。
             if not input_upload and not self.instance.input_path:
                 raise ValidationError({"input_upload": "Please upload a .in judge input file."})
             if not output_upload and not self.instance.output_path:
@@ -79,6 +81,7 @@ class TestCaseInlineForm(forms.ModelForm):
         if not instance.problem_id:
             raise ValidationError("Problem must be saved before uploading testcase files.")
 
+        # 文件名按题目和测试点顺序固定，便于判题时用相对路径定位输入输出。
         relative_dir = Path(f"problem_{instance.problem_id}")
         relative_path = relative_dir / f"{instance.sort_order}{extension}"
         target = Path(settings.TESTCASE_ROOT) / relative_path
